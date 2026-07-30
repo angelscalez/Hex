@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Offline Hex Editor</title>
+<style>
+body{
+    margin:0;
+    background:#111;
+    color:#ddd;
+    font-family:Consolas,monospace;
+}
+#toolbar{
+    background:#222;
+    padding:8px;
+    position:sticky;
+    top:0;
+}
+button,input{
+    background:#333;
+    color:white;
+    border:1px solid #555;
+    padding:5px;
+}
+#editor{
+    white-space:pre;
+    overflow:auto;
+    height:calc(100vh - 55px);
+    padding:10px;
+}
+.byte{
+    display:inline-block;
+    width:22px;
+    text-align:center;
+    cursor:pointer;
+}
+.byte:hover{
+    background:#444;
+}
+.selected{
+    background:#0a84ff;
+}
+.offset{
+    color:#6cf;
+}
+.ascii{
+    color:#8f8;
+}
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+<input type="file" id="file">
+<button onclick="save()">Save</button>
+<span id="info"></span>
+</div>
+
+<div id="editor"></div>
+
+<script>
+
+let bytes=new Uint8Array();
+let filename="output.bin";
+let selected=-1;
+
+document.getElementById("file").onchange=e=>{
+    const f=e.target.files[0];
+    if(!f)return;
+    filename=f.name;
+    f.arrayBuffer().then(buf=>{
+        bytes=new Uint8Array(buf);
+        render();
+    });
+};
+
+function render(){
+
+    let out="";
+    let ascii="";
+
+    for(let i=0;i<bytes.length;i++){
+
+        if(i%16===0){
+
+            if(i>0){
+                out+=" "+ascii+"\n";
+            }
+
+            ascii="";
+            out+="<span class='offset'>"+
+                i.toString(16).padStart(8,"0")+
+                "</span> ";
+        }
+
+        let b=bytes[i];
+
+        ascii+=
+            (b>=32&&b<127)?
+            String.fromCharCode(b):".";
+
+        out+=
+        "<span class='byte"+
+        (selected===i?" selected":"")+
+        "' data-i='"+i+"'>"+
+        b.toString(16).padStart(2,"0").toUpperCase()+
+        "</span> ";
+    }
+
+    while(bytes.length%16){
+        out+="   ";
+        ascii+=" ";
+        bytes=bytes;
+        if((bytes.length++)%16===0)break;
+    }
+
+    out+=" "+ascii;
+
+    document.getElementById("editor").innerHTML=out;
+
+    document.querySelectorAll(".byte").forEach(e=>{
+        e.onclick=()=>edit(parseInt(e.dataset.i));
+    });
+
+    document.getElementById("info").textContent=
+        bytes.length+" bytes";
+}
+
+function edit(i){
+
+    selected=i;
+    render();
+
+    let v=prompt(
+        "Hex value (00-FF)",
+        bytes[i].toString(16).padStart(2,"0").toUpperCase()
+    );
+
+    if(v===null)return;
+
+    v=v.trim();
+
+    if(!/^[0-9a-fA-F]{2}$/.test(v)){
+        alert("Invalid hex.");
+        return;
+    }
+
+    bytes[i]=parseInt(v,16);
+    render();
+}
+
+function save(){
+
+    const blob=new Blob([bytes]);
+
+    const a=document.createElement("a");
+
+    a.href=URL.createObjectURL(blob);
+
+    a.download=filename;
+
+    a.click();
+
+    URL.revokeObjectURL(a.href);
+}
+
+document.addEventListener("keydown",e=>{
+
+    if(selected<0)return;
+
+    if(e.key==="ArrowLeft"&&selected>0){
+        selected--;
+        render();
+    }
+
+    if(e.key==="ArrowRight"&&selected<bytes.length-1){
+        selected++;
+        render();
+    }
+
+    if(e.key==="ArrowUp"&&selected>=16){
+        selected-=16;
+        render();
+    }
+
+    if(e.key==="ArrowDown"&&selected<bytes.length-16){
+        selected+=16;
+        render();
+    }
+
+    if(e.key==="Enter"){
+        edit(selected);
+    }
+
+});
+
+</script>
+
+</body>
+</html>
